@@ -582,7 +582,7 @@ export const buyPlan = async (req, res) => {
     console.log("parentUnilevel:", user.parentUnilevel);
     
     if (user.parentUnilevel) {
-      console.log("✅ Calling activateReferralAndGiveBonus for sponsor:", user.parentUnilevel);
+      console.log(" Calling activateReferralAndGiveBonus for sponsor:", user.parentUnilevel);
       const bonusResult = await activateReferralAndGiveBonus(
         user.parentUnilevel,
         user._id,
@@ -591,7 +591,7 @@ export const buyPlan = async (req, res) => {
       );
       console.log("Bonus Result:", JSON.stringify(bonusResult, null, 2));
     } else {
-      console.log("❌ No parentUnilevel found - No sponsor bonus will be given");
+      console.log(" No parentUnilevel found - No sponsor bonus will be given");
     }
 
     // 10. LEVEL INCOME DISTRIBUTION

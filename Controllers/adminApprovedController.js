@@ -2,6 +2,7 @@ import { KYC } from "../models/KYC.js";
 import { User } from "../models/User.js";
 import jwt from "jsonwebtoken";
 
+
 // =================  UPDATE KYC STATUS (APPROVE/REJECT) =================
 export const updateKYCStatus = async (req, res) => {
   try {
@@ -201,4 +202,3 @@ export const editReferral = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-

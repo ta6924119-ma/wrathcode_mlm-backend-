@@ -22,6 +22,7 @@ import {
   getDepositByUserId,
   getAllCommissions ,
   getCommissionByUserId,
+  getIncome,
 } from "../Controllers/AdminDashordController.js";
 
 import { adminProtect } from "../middleware/MIddlewares.js";
@@ -78,7 +79,8 @@ router.get("/deposits/user/:userId",adminProtect, getDepositByUserId);
 router.get("/commissions",  adminProtect,getAllCommissions);
 router.get("/commissions/user/:userId",adminProtect, getCommissionByUserId);
 
-
+//==============================INCOME REPORT===========================
+router.get("/income/user", adminProtect, getIncome);
 
 
 

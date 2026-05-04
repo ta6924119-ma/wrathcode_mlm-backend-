@@ -11,6 +11,7 @@ import {
   blockUnblockUser,
   deleteUser,
   editReferral,
+
 } from "../Controllers/adminApprovedController.js";
 import {
   updateBinaryConfig,
@@ -28,7 +29,8 @@ import {
   createDeposit,
   updateDeposit,
   createCommission,
-  updateCommission 
+  updateCommission,
+  updateIncomeConfig,
 } from "../Controllers/AdminActionController.js";
 
 import {
@@ -84,6 +86,8 @@ router.patch("/deposits/user/:userId",adminProtect, updateDeposit);
 router.post("/commissions", adminProtect, createCommission);
 router.patch("/commissions/user/:userId", adminProtect, updateCommission);
 
+//==============================INCOME ========================
+router.patch("/income/add", adminProtect, updateIncomeConfig);
 // Payment Management
 
 // Admin get all tickets (with optional status filter)

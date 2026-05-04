@@ -21,10 +21,16 @@ export const getUserDashboard = async (req, res) => {
     const activeReferrals = user.activeReferralCount || 0;
     const pendingReferrals = user.pendingReferralCount || 0;
 
-    const totalEarnings = await Commission.aggregate([
+    // Get total earnings from commissions
+    const totalEarningsFromCommissions = await Commission.aggregate([
       { $match: { user: user._id } },
       { $group: { _id: null, total: { $sum: "$amount" } } }
     ]);
+
+    // ✅ Merge commission earnings + referral earnings
+    const commissionEarnings = totalEarningsFromCommissions[0]?.total || 0;
+    const referralEarnings = user.totalReferralEarnings || 0;
+    const totalEarnings = commissionEarnings + referralEarnings;
 
     const monthlyEarning = await Commission.aggregate([
       {
@@ -42,10 +48,10 @@ export const getUserDashboard = async (req, res) => {
       totalReferrals,
       activeReferrals,
       pendingReferrals,
-      totalEarnings: totalEarnings[0]?.total || 0,
+      totalEarnings: totalEarnings,  // ✅ Commission + Referral earnings
       availableBalance: user.wallet || 0,
-      monthlyEarning: monthlyEarning[0]?.total || 0,
-      totalReferralEarnings: user.totalReferralEarnings || 0
+      monthlyEarning: monthlyEarning[0]?.total || 0
+      // ❌ totalReferralEarnings REMOVED
     };
 
     // ================== 2. RECENT COMMISSIONS ==================
@@ -124,7 +130,7 @@ export const getUserReferralDashboard = async (req, res) => {
     const totalReferrals = (user.activeReferralCount || 0) + (user.pendingReferralCount || 0);
     const activeReferrals = user.activeReferralCount || 0;
     const pendingReferrals = user.pendingReferralCount || 0;
-    const totalReferralEarnings = user.totalReferralEarnings || 0;
+    const totalEarnings = user.totalReferralEarnings || 0;
 
     // ================== 3. REFERRAL LIST ==================
     const referralList = (user.referredUsers || []).map((ref) => ({
@@ -148,7 +154,7 @@ export const getUserReferralDashboard = async (req, res) => {
           totalReferrals,
           activeReferrals,
           pendingReferrals,
-          totalReferralEarnings
+           totalEarnings,
         },
         referralList,
       },

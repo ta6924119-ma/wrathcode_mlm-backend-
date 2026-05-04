@@ -190,56 +190,56 @@ app.use((err, req, res, next) => {
 // ==================== START SERVER ====================
 const Port = process.env.PORT || 3031;
 app.listen(Port, "0.0.0.0", () => {
-//   const interfaces = os.networkInterfaces();
-//   const addresses = [];
+  const interfaces = os.networkInterfaces();
+  const addresses = [];
 
-//   for (const name in interfaces) {
-//     for (const iface of interfaces[name]) {
-//       if (iface.family === "IPv4" && !iface.internal) {
-//         addresses.push(iface.address);
-//       }
-//     }
-//   }
-
-//   console.log("CONNECTED DB NAME:", mongoose.connection.name);
-//   console.log(`Server running on port ${Port}`);
-//   console.log("Access backend using:");
-
-//   addresses.forEach((addr) => {
-//     console.log(`http://${addr}:${Port}`);
-//   });
-
-// ===========================ngroksetup==========================================
-  console.log(
-    `\n Server started! Port: ${Port} | Env: ${process.env.NODE_ENV || "dev"} | CORS: ${process.env.NODE_ENV !== "production" ? "🟢 Open" : "🔴 Restricted"}`,
-  );
-  console.log(` Ngrok: https://unorbed-reva-cuddlesome.ngrok-free.dev`);
-});
-
-// Graceful shutdown
-process.on("SIGINT", async () => {
-  console.log("\nShutting down gracefully...");
-  try {
-    // Close HTTP server
-    server.close(async () => {
-      // Close MongoDB connection
-      if (mongoose.connection.readyState === 1) {
-        await mongoose.connection.close();
-        console.log("🔌 Database connection closed");
+  for (const name in interfaces) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === "IPv4" && !iface.internal) {
+        addresses.push(iface.address);
       }
-      console.log("Shutdown complete");
-      process.exit(0);
-    });
-  } catch (error) {
-    console.error(" Shutdown error:", error.message);
-    process.exit(1);
+    }
   }
-});
 
-// Handle unhandled rejections
-process.on("unhandledRejection", (err) => {
-  console.error(" Unhandled Rejection:", err);
-  if (process.env.NODE_ENV === "production") {
-    server.close(() => process.exit(1));
-  }
+  console.log("CONNECTED DB NAME:", mongoose.connection.name);
+  console.log(`Server running on port ${Port}`);
+  console.log("Access backend using:");
+
+  addresses.forEach((addr) => {
+    console.log(`http://${addr}:${Port}`);
+  });
 });
+// ===========================ngroksetup==========================================
+//   console.log(
+//     `\n Server started! Port: ${Port} | Env: ${process.env.NODE_ENV || "dev"} | CORS: ${process.env.NODE_ENV !== "production" ? "🟢 Open" : "🔴 Restricted"}`,
+//   );
+//   console.log(` Ngrok: https://unorbed-reva-cuddlesome.ngrok-free.dev`);
+// });
+
+// // Graceful shutdown
+// process.on("SIGINT", async () => {
+//   console.log("\nShutting down gracefully...");
+//   try {
+//     // Close HTTP server
+//     server.close(async () => {
+//       // Close MongoDB connection
+//       if (mongoose.connection.readyState === 1) {
+//         await mongoose.connection.close();
+//         console.log("🔌 Database connection closed");
+//       }
+//       console.log("Shutdown complete");
+//       process.exit(0);
+//     });
+//   } catch (error) {
+//     console.error(" Shutdown error:", error.message);
+//     process.exit(1);
+//   }
+// });
+
+// // Handle unhandled rejections
+// process.on("unhandledRejection", (err) => {
+//   console.error(" Unhandled Rejection:", err);
+//   if (process.env.NODE_ENV === "production") {
+//     server.close(() => process.exit(1));
+//   }
+// });

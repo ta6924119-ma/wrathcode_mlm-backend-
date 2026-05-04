@@ -8,7 +8,7 @@ import { User } from "../models/User.js";
 import { Deposit } from "../models/deposit.js";
 import { addTransaction } from "../Utils/wallet.js";
 import { Commission } from "../models/commistion.js";
-
+import { IncomeConfig } from "../models/incomconfig.js";
 
 //===========================BINARY PLAN=========================
 export const updateBinaryConfig = async (req, res) => {
@@ -700,3 +700,69 @@ export const updateCommission = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
+// ================= UPDATE INCOME CONFIGURATION =================
+export const updateIncomeConfig = async (req, res) => {
+  try {
+    let config = await IncomeConfig.findOne();
+    
+    if (!config) {
+      config = new IncomeConfig();
+    }
+    
+    const {
+      directCommission,
+      levelCommission,
+      binaryCommission,
+      matchingBonus,
+      leadershipBonus,
+      roiCommission,
+      rewardBonus
+    } = req.body;
+    
+    if (directCommission) {
+      config.directCommission = { ...config.directCommission, ...directCommission };
+    }
+    
+    if (levelCommission) {
+      config.levelCommission = { ...config.levelCommission, ...levelCommission };
+    }
+    
+    if (binaryCommission) {
+      config.binaryCommission = { ...config.binaryCommission, ...binaryCommission };
+    }
+    
+    if (matchingBonus) {
+      config.matchingBonus = { ...config.matchingBonus, ...matchingBonus };
+    }
+    
+    if (leadershipBonus) {
+      config.leadershipBonus = { ...config.leadershipBonus, ...leadershipBonus };
+    }
+    
+    if (roiCommission) {
+      config.roiCommission = { ...config.roiCommission, ...roiCommission };
+    }
+    
+    if (rewardBonus) {
+      config.rewardBonus = { ...config.rewardBonus, ...rewardBonus };
+    }
+    
+    config.updatedBy = req.admin._id;
+    await config.save();
+    
+    res.status(200).json({
+      success: true,
+      message: "Income configuration updated successfully",
+      data: config
+    });
+    
+  } catch (error) {
+    console.error("Update Income Config Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+

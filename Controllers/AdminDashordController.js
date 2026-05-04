@@ -14,6 +14,7 @@ import { KYC } from "../models/KYC.js";
 import { Transaction } from "../models/transection.js";
 import { timeAgo } from "../Utils/timeago.js";
 import ExcelJS from "exceljs";
+import { IncomeConfig } from "../models/incomconfig.js";
 
 
 
@@ -2182,6 +2183,61 @@ export const getCommissionByUserId = async (req, res) => {
     });
     
   } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+
+// ================= GET INCOME CONFIGURATION =================
+
+
+export const getIncome = async (req, res) => {
+  try {
+    let config = await IncomeConfig.findOne();
+    
+    if (!config) {
+      config = await IncomeConfig.create({
+        directCommission: {
+          active: true, autoCredit: true, minAmount: 0, maxAmount: 100000, percentage: 5
+        },
+        levelCommission: {
+          active: true, autoCredit: true, minAmount: 0, maxAmount: 100000,
+          levels: [
+            { level: 1, percentage: 10 },
+            { level: 2, percentage: 5 },
+            { level: 3, percentage: 3 },
+            { level: 4, percentage: 2 },
+            { level: 5, percentage: 1 },
+            { level: 6, percentage: 1 }
+          ]
+        },
+        binaryCommission: {
+          active: true, autoCredit: true, minAmount: 0, maxAmount: 100000, pairValue: 100
+        },
+        matchingBonus: {
+          active: false, autoCredit: true, minAmount: 0, maxAmount: 50000, percentage: 5, levels: 3
+        },
+        leadershipBonus: {
+          active: false, autoCredit: true, minAmount: 0, maxAmount: 100000, percentage: 3, rankRequired: "Gold"
+        },
+        roiCommission: {
+          active: true, autoCredit: true, minAmount: 0, maxAmount: 100000,
+          roiFrequency: "daily", roiPercentage: 5, validityPeriod: 30, capitalLock: false
+        },
+        rewardBonus: {
+          active: false, autoCredit: true, minAmount: 0, maxAmount: 50000, rewardType: "fixed", rewardValue: 0
+        }
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: config
+    });
+    
+  } catch (error) {
+    console.error("Get Income Config Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
