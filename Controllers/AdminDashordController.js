@@ -15,7 +15,9 @@ import { Transaction } from "../models/transection.js";
 import { timeAgo } from "../Utils/timeago.js";
 import ExcelJS from "exceljs";
 
-// ================= ADMIN DASHBOARD STATS =================
+
+
+// ================= ADMIN DASHBOARD STATS ====================
 export const getAdminDashboard = async (req, res) => {
   try {
     const today = new Date();
@@ -141,6 +143,9 @@ export const getAdminDashboard = async (req, res) => {
           ? 100
           : 0;
 
+    // ================== 7. RECENT ACTIVITIES ==================
+    const recentActivities = await getRecentActivities();
+
     res.status(200).json({
       success: true,
       data: {
@@ -168,6 +173,7 @@ export const getAdminDashboard = async (req, res) => {
           value: systemRevenue,
           growth: `${revenueGrowth >= 0 ? "+" : ""}${revenueGrowth}%`,
         },
+        recentActivities: recentActivities,
       },
     });
   } catch (error) {
@@ -175,6 +181,179 @@ export const getAdminDashboard = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ================= GET RECENT ACTIVITIES =================
+async function getRecentActivities() {
+  const activities = [];
+
+  // 1. Recent User Registrations
+  const recentUsers = await User.find({})
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .select("name email createdAt");
+
+  recentUsers.forEach((user) => {
+    activities.push({
+      type: "REGISTRATION",
+      title: "New user registered",
+      description: `${user.name} (${user.email})`,
+      time: user.createdAt,
+    });
+  });
+
+  // 2. Recent User Logins
+  const recentLogins = await User.find({ lastLogin: { $ne: null } })
+    .sort({ lastLogin: -1 })
+    .limit(20)
+    .select("name email lastLogin");
+
+  recentLogins.forEach((user) => {
+    activities.push({
+      type: "LOGIN",
+      title: "User logged in",
+      description: `${user.name} logged in`,
+      time: user.lastLogin,
+    });
+  });
+
+  // 3. Recent Investments (Commissions)
+  const recentInvestments = await Commission.find({})
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .populate("user", "name");
+
+  recentInvestments.forEach((inv) => {
+    activities.push({
+      type: "INVESTMENT",
+      title: "Investment made",
+      description: `₹${inv.amount.toLocaleString()} by ${inv.user?.name || "Unknown"} (${inv.type})`,
+      time: inv.createdAt,
+    });
+  });
+
+  // 4. Recent Withdrawal Requests
+  const recentWithdrawals = await Withdrawal.find({})
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .populate("user", "name");
+
+  recentWithdrawals.forEach((wd) => {
+    activities.push({
+      type: "WITHDRAWAL",
+      title: "Withdrawal request",
+      description: `₹${wd.amount.toLocaleString()} by ${wd.user?.name || "Unknown"} (${wd.status})`,
+      time: wd.createdAt,
+    });
+  });
+
+  // 5. KYC Approves/Rejects
+  const kycActivities = await KYC.find({
+    verifiedAt: { $ne: null },
+  })
+    .sort({ verifiedAt: -1 })
+    .limit(20)
+    .populate("userId", "name");
+
+  kycActivities.forEach((kyc) => {
+    activities.push({
+      type: "KYC",
+      title: `KYC ${kyc.kycStatus}`,
+      description: `${kyc.userId?.name}'s KYC ${kyc.kycStatus}${kyc.adminRemark ? ` - Reason: ${kyc.adminRemark}` : ""}`,
+      time: kyc.verifiedAt,
+    });
+  });
+
+  // 6. Deposit Approves
+  const approvedDeposits = await Deposit.find({
+    status: "approved",
+    approvedAt: { $ne: null },
+  })
+    .sort({ approvedAt: -1 })
+    .limit(20)
+    .populate("user", "name");
+
+  approvedDeposits.forEach((dep) => {
+    activities.push({
+      type: "DEPOSIT",
+      title: "Deposit approved",
+      description: `₹${dep.amount.toLocaleString()} deposit approved for ${dep.user?.name}`,
+      time: dep.approvedAt,
+    });
+  });
+
+  // 7. Withdrawal Approves
+  const approvedWithdrawals = await Withdrawal.find({
+    status: "approved",
+    processedAt: { $ne: null },
+  })
+    .sort({ processedAt: -1 })
+    .limit(20)
+    .populate("user", "name");
+
+  approvedWithdrawals.forEach((wd) => {
+    activities.push({
+      type: "WITHDRAW_APPROVE",
+      title: "Withdrawal approved",
+      description: `₹${wd.amount.toLocaleString()} withdrawal approved for ${wd.user?.name}`,
+      time: wd.processedAt,
+    });
+  });
+
+  // 8. User Profile Updates
+  const profileUpdates = await User.find({
+    updatedAt: { $ne: null },
+    $expr: { $ne: ["$createdAt", "$updatedAt"] },
+  })
+    .sort({ updatedAt: -1 })
+    .limit(20)
+    .select("name email updatedAt");
+
+  profileUpdates.forEach((user) => {
+    activities.push({
+      type: "PROFILE_UPDATE",
+      title: "Profile updated",
+      description: `${user.name} updated their profile`,
+      time: user.updatedAt,
+    });
+  });
+
+  // 9. Block/Unblock Users
+  const blockedUsers = await User.find({
+    $or: [{ blockedAt: { $ne: null } }, { unblockedAt: { $ne: null } }],
+  })
+    .sort({ blockedAt: -1, unblockedAt: -1 })
+    .limit(20)
+    .select("name blockedAt unblockedAt isBlocked");
+
+  blockedUsers.forEach((user) => {
+    if (user.isBlocked && user.blockedAt) {
+      activities.push({
+        type: "USER_BLOCK",
+        title: "User blocked",
+        description: `${user.name} blocked by admin`,
+        time: user.blockedAt,
+      });
+    } else if (!user.isBlocked && user.unblockedAt) {
+      activities.push({
+        type: "USER_UNBLOCK",
+        title: "User unblocked",
+        description: `${user.name} unblocked by admin`,
+        time: user.unblockedAt,
+      });
+    }
+  });
+
+  // Sort all activities by time (newest first)
+  activities.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+  // Return top 50 recent activities (sirf data)
+  return activities.slice(0, 50).map((activity) => ({
+    type: activity.type,
+    title: activity.title,
+    description: activity.description,
+    time: activity.time,
+  }));
+}
 
 // ===============================SystemReport================
 
