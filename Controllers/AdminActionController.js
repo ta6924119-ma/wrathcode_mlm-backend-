@@ -9,7 +9,8 @@ import { Deposit } from "../models/deposit.js";
 import { addTransaction } from "../Utils/wallet.js";
 import { Commission } from "../models/commistion.js";
 import { IncomeConfig } from "../models/incomconfig.js";
-
+import { Wallet } from "../models/wallet.js";
+import { Transaction } from "../models/transection.js";
 //===========================BINARY PLAN=========================
 export const updateBinaryConfig = async (req, res) => {
   try {
@@ -765,4 +766,42 @@ export const updateIncomeConfig = async (req, res) => {
 };
 
 
+// ================= 2. UPDATE USER WALLET STATUS  =================
+export const updateWalletStatus = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { status } = req.body;
+    
+    if (!status || !["active", "reject"].includes(status)) {
+      return res.status(400).json({ success: false, message: "Status must be 'active' or 'reject'" });
+    }
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    
+    if (status === "active") {
+      user.isActive = true;
+    } else if (status === "reject") {
+      user.isActive = false;
+    }
+    
+    await user.save();
+    
+    res.status(200).json({
+      success: true,
+      message: `Wallet ${status === "active" ? "activated" : "rejected/frozen"} successfully`,
+      data: {
+        userId: user._id,
+        userName: user.name,
+        status: status
+      }
+    });
+    
+  } catch (error) {
+    console.error("Update Wallet Status Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 

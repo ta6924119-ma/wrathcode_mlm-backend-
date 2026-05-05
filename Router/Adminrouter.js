@@ -31,6 +31,7 @@ import {
   createCommission,
   updateCommission,
   updateIncomeConfig,
+  updateWalletStatus ,
 } from "../Controllers/AdminActionController.js";
 
 import {
@@ -88,6 +89,9 @@ router.patch("/commissions/user/:userId", adminProtect, updateCommission);
 
 //==============================INCOME ========================
 router.patch("/income/add", adminProtect, updateIncomeConfig);
+
+//==============================WALLET MANAGEMENT===========================
+router.patch("/wallets/user/status/:userId", adminProtect, updateWalletStatus);
 // Payment Management
 
 // Admin get all tickets (with optional status filter)

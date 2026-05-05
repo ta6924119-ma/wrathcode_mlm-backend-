@@ -15,6 +15,8 @@ import { Transaction } from "../models/transection.js";
 import { timeAgo } from "../Utils/timeago.js";
 import ExcelJS from "exceljs";
 import { IncomeConfig } from "../models/incomconfig.js";
+import { Wallet } from "../models/wallet.js";
+
 
 
 
@@ -2238,6 +2240,100 @@ export const getIncome = async (req, res) => {
     
   } catch (error) {
     console.error("Get Income Config Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+// ================= 1. GET  USERS WALLET  =================
+export const getAllWallets = async (req, res) => {
+  try {
+    const { search, page = 1, limit = 20 } = req.query;
+    
+    let userFilter = {};
+    if (search) {
+      userFilter = {
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { email: { $regex: search, $options: "i" } }
+        ]
+      };
+    }
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const users = await User.find(userFilter)
+      .select("name email wallet isActive")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    const totalUsers = await User.countDocuments(userFilter);
+    
+    // ================= WALLET SUMMARY (ARRAY 1) =================
+    const walletSummary = await Promise.all(users.map(async (user) => {
+      let wallet = await Wallet.findOne({ user: user._id });
+      
+      return {
+        userId: user._id,
+        userName: user.name,
+        userEmail: user.email,
+        status: user.isActive ? "active" : "reject",
+        wallets: [
+          { type: "mainWallet", amount: user.wallet || 0 },
+          { type: "incomeWallet", amount: wallet?.incomeWallet?.balance || 0 },
+          { type: "roiWallet", amount: wallet?.roiWallet?.balance || 0 },
+          { type: "fundWallet", amount: wallet?.fundWallet?.balance || 0 }
+        ]
+      };
+    }));
+    
+    // ================= WALLET HISTORY (ARRAY 2) =================
+    const allTransactions = [];
+    for (const user of users) {
+      const transactions = await Transaction.find({ user: user._id })
+        .sort({ createdAt: -1 })
+        .limit(50);
+      
+      transactions.forEach(tx => {
+        allTransactions.push({
+          userId: user._id,
+          userName: user.name,
+          userEmail: user.email,
+          walletType: tx.walletType,
+          type: tx.type,
+          amount: tx.amount,
+          date: tx.createdAt,
+          status: tx.status === "paid" ? "active" : "reject"
+        });
+      });
+    }
+    
+    allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    const totalTransactions = allTransactions.length;
+    const historyStart = (parseInt(page) - 1) * parseInt(limit);
+    const historyEnd = historyStart + parseInt(limit);
+    const paginatedHistory = allTransactions.slice(historyStart, historyEnd);
+    
+    res.status(200).json({
+      success: true,
+      stats: {
+        totalUsers: totalUsers,
+        totalTransactions: totalTransactions
+      },
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalUsers / parseInt(limit)),
+        totalUsers: totalUsers,
+        limit: parseInt(limit)
+      },
+      walletSummary: walletSummary,
+      walletHistory: paginatedHistory
+    });
+    
+  } catch (error) {
+    console.error("Get All Wallets Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

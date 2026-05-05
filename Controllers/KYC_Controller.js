@@ -8,6 +8,7 @@ import {
   isDraiverylicenceId
 } from "../Utils/RegisterValidation.js";
 
+
 export const submitKYC = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -27,13 +28,11 @@ export const submitKYC = async (req, res) => {
       idName,
       submit
     } = req.body;
- console.log(req.body)
+
     let kyc = await KYC.findOne({ userId });
     if (!kyc) kyc = new KYC({ userId });
 
-    console.log(kyc)
-
-    // ================= VALIDATION =================
+    // ================= BASIC VALIDATION =================
     if (phoneNumber && !isValidPhone(phoneNumber)) {
       return res.status(400).json({ message: "Invalid phone number" });
     }
@@ -46,20 +45,7 @@ export const submitKYC = async (req, res) => {
       return res.status(400).json({ message: "Invalid PAN" });
     }
 
-    if (idType === "Passport" && !isValidPassportNumber(idNumber)) {
-      return res.status(400).json({ message: "Invalid Passport" });
-    }
-
-    if (idType === "VoterID" && !isValidVoterId(idNumber)) {
-      return res.status(400).json({ message: "Invalid Voter ID" });
-    }
-
-    if (idType === "Driver_License" && !isDraiverylicenceId(idNumber)) {
-      return res.status(400).json({ message: "Invalid Driver License" });
-    }
-
-    // ================= SAVE DATA =================
-    
+    // ================= SAVE TEXT DATA =================
     kyc.fullName = fullName || kyc.fullName;
     kyc.dateOfBirth = dateOfBirth || kyc.dateOfBirth;
     kyc.address = address || kyc.address;
@@ -73,6 +59,7 @@ export const submitKYC = async (req, res) => {
     kyc.idNumber = idNumber || kyc.idNumber;
     kyc.idName = idName || kyc.idName;
 
+    // ================= FILE UPLOAD =================
     if (files.frontImage) {
       kyc.frontImage = files.frontImage[0].filename;
     }
@@ -89,14 +76,44 @@ export const submitKYC = async (req, res) => {
       kyc.addressImage = files.addressImage[0].filename;
     }
 
-    // ================= SUBMIT =================
-    if (submit) {
+    // =================  IMAGE VALIDATION =================
+  
+    if (submit === "true" || submit === true) {
+      
+      if (
+        !kyc.frontImage ||
+        !kyc.backImage ||
+        !kyc.selfiewithidnumber ||
+        !kyc.addressImage
+      ) {
+        return res.status(400).json({
+          message: "All images are required before submitting KYC"
+        });
+      }
+
+    
+      if (
+        !kyc.fullName ||
+        !kyc.dateOfBirth ||
+        !kyc.address ||
+        !kyc.city ||
+        !kyc.state ||
+        !kyc.pincode ||
+        !kyc.phoneNumber ||
+        !kyc.idType ||
+        !kyc.idNumber
+      ) {
+        return res.status(400).json({
+          message: "All fields are required before submitting KYC"
+        });
+      }
+
       kyc.submitted = true;
       kyc.kycStatus = "Pending";
     }
 
     await kyc.save();
-
+    console.log(kyc);
     return res.status(200).json({
       success: true,
       message: "KYC updated successfully",
@@ -107,7 +124,6 @@ export const submitKYC = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-
 
 
 
