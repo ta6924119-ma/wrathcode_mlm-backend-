@@ -7,8 +7,33 @@ import {
   isValidPhone,
   isDraiverylicenceId
 } from "../Utils/RegisterValidation.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+// Helper: Convert file to Base64
+const getBase64Image = (filePath) => {
+  try {
+    if (!filePath) return null;
+    const fullPath = path.join(__dirname, "..", filePath);
+    if (fs.existsSync(fullPath)) {
+      const imageBuffer = fs.readFileSync(fullPath);
+      const base64 = imageBuffer.toString("base64");
+      const ext = path.extname(fullPath).toLowerCase();
+      const mimeType = ext === ".png" ? "image/png" : "image/jpeg";
+      return `data:${mimeType};base64,${base64}`;
+    }
+    return null;
+  } catch (error) {
+    console.error("Base64 conversion error:", error);
+    return null;
+  }
+};
+ 
+// ================= SUBMIT KYC =================
 export const submitKYC = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -32,20 +57,18 @@ export const submitKYC = async (req, res) => {
     let kyc = await KYC.findOne({ userId });
     if (!kyc) kyc = new KYC({ userId });
 
-    // ================= BASIC VALIDATION =================
+    // Validation
     if (phoneNumber && !isValidPhone(phoneNumber)) {
       return res.status(400).json({ message: "Invalid phone number" });
     }
-
     if (idType === "Aadhaar" && !isValidAdharNumber(idNumber)) {
       return res.status(400).json({ message: "Invalid Aadhaar" });
     }
-
     if (idType === "PAN" && !isValidPanNumber(idNumber)) {
       return res.status(400).json({ message: "Invalid PAN" });
     }
 
-    // ================= SAVE TEXT DATA =================
+    // Save text data
     kyc.fullName = fullName || kyc.fullName;
     kyc.dateOfBirth = dateOfBirth || kyc.dateOfBirth;
     kyc.address = address || kyc.address;
@@ -54,66 +77,29 @@ export const submitKYC = async (req, res) => {
     kyc.country = country || kyc.country;
     kyc.pincode = pincode || kyc.pincode;
     kyc.phoneNumber = phoneNumber || kyc.phoneNumber;
-
     kyc.idType = idType || kyc.idType;
     kyc.idNumber = idNumber || kyc.idNumber;
     kyc.idName = idName || kyc.idName;
 
-    // ================= FILE UPLOAD =================
-    if (files.frontImage) {
-      kyc.frontImage = files.frontImage[0].filename;
-    }
+    // File upload
+    if (files.frontImage) kyc.frontImage = files.frontImage[0].filename;
+    if (files.backImage) kyc.backImage = files.backImage[0].filename;
+    if (files.selfiewithidnumber) kyc.selfiewithidnumber = files.selfiewithidnumber[0].filename;
+    if (files.addressImage) kyc.addressImage = files.addressImage[0].filename;
 
-    if (files.backImage) {
-      kyc.backImage = files.backImage[0].filename;
-    }
-
-    if (files.selfiewithidnumber) {
-      kyc.selfiewithidnumber = files.selfiewithidnumber[0].filename;
-    }
-
-    if (files.addressImage) {
-      kyc.addressImage = files.addressImage[0].filename;
-    }
-
-    // =================  IMAGE VALIDATION =================
-  
     if (submit === "true" || submit === true) {
-      
-      if (
-        !kyc.frontImage ||
-        !kyc.backImage ||
-        !kyc.selfiewithidnumber ||
-        !kyc.addressImage
-      ) {
-        return res.status(400).json({
-          message: "All images are required before submitting KYC"
-        });
+      if (!kyc.frontImage || !kyc.backImage || !kyc.selfiewithidnumber || !kyc.addressImage) {
+        return res.status(400).json({ message: "All images are required before submitting KYC" });
       }
-
-    
-      if (
-        !kyc.fullName ||
-        !kyc.dateOfBirth ||
-        !kyc.address ||
-        !kyc.city ||
-        !kyc.state ||
-        !kyc.pincode ||
-        !kyc.phoneNumber ||
-        !kyc.idType ||
-        !kyc.idNumber
-      ) {
-        return res.status(400).json({
-          message: "All fields are required before submitting KYC"
-        });
+      if (!kyc.fullName || !kyc.dateOfBirth || !kyc.address || !kyc.city || !kyc.state || !kyc.pincode || !kyc.phoneNumber || !kyc.idType || !kyc.idNumber) {
+        return res.status(400).json({ message: "All fields are required before submitting KYC" });
       }
-
       kyc.submitted = true;
       kyc.kycStatus = "Pending";
     }
 
     await kyc.save();
-    console.log(kyc);
+    console.log("KYC saved:", kyc);
     return res.status(200).json({
       success: true,
       message: "KYC updated successfully",
@@ -125,14 +111,12 @@ export const submitKYC = async (req, res) => {
   }
 };
 
-
-
 // ================= GET MY KYC  =================
 export const getMyKYC = async (req, res) => {
   try {
     const userId = req.user._id;
-
     const kyc = await KYC.findOne({ userId });
+    const uploadPath = "uploads/up/";
 
     if (!kyc) {
       return res.status(200).json({
@@ -144,21 +128,13 @@ export const getMyKYC = async (req, res) => {
       });
     }
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const uploadPath = "/uploads/up/";
-
     let statusMessage = "";
-    let statusColor = "";
-
     if (kyc.kycStatus === "Approved") {
       statusMessage = "Your KYC has been approved";
-      statusColor = "green";
     } else if (kyc.kycStatus === "Rejected") {
       statusMessage = `Your KYC was rejected. Reason: ${kyc.adminRemark || "No reason provided"}`;
-      statusColor = "red";
-    } else if (kyc.kycStatus === "Pending") {
-      statusMessage = " Your KYC is under review. Admin will verify soon.";
-      statusColor = "orange";
+    } else {
+      statusMessage = "Your KYC is under review. Admin will verify soon.";
     }
 
     res.status(200).json({
@@ -167,7 +143,6 @@ export const getMyKYC = async (req, res) => {
         hasKYC: true,
         status: kyc.kycStatus.toLowerCase(),
         statusMessage: statusMessage,
-        statusColor: statusColor,
         adminRemark: kyc.adminRemark || "",
         submittedAt: kyc.createdAt,
         verifiedAt: kyc.verifiedAt || null,
@@ -187,10 +162,10 @@ export const getMyKYC = async (req, res) => {
           idName: kyc.idName
         },
         documents: {
-          frontImage: kyc.frontImage ? `${baseUrl}${uploadPath}${kyc.frontImage}` : null,
-          backImage: kyc.backImage ? `${baseUrl}${uploadPath}${kyc.backImage}` : null,
-          selfie: kyc.selfiewithidnumber ? `${baseUrl}${uploadPath}${kyc.selfiewithidnumber}` : null,
-          addressProof: kyc.addressImage ? `${baseUrl}${uploadPath}${kyc.addressImage}` : null
+          frontImage: getBase64Image(`${uploadPath}${kyc.frontImage}`),
+          backImage: getBase64Image(`${uploadPath}${kyc.backImage}`),
+          selfie: getBase64Image(`${uploadPath}${kyc.selfiewithidnumber}`),
+          addressProof: getBase64Image(`${uploadPath}${kyc.addressImage}`)
         }
       }
     });
@@ -200,3 +175,74 @@ export const getMyKYC = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// export const submitKYC = async (req, res) => {
+//   try {
+ 
+//     console.log("BODY =>", req.body);
+//     console.log("FILES =>", req.files);
+ 
+//     // =========================
+//     // FILES
+//     // =========================
+ 
+//     const frontImage =
+//       req.files?.frontImage?.[0]?.filename || "";
+ 
+//     const backImage =
+//       req.files?.backImage?.[0]?.filename || "";
+ 
+//     const selfiewithidnumber =
+//       req.files?.selfiewithidnumber?.[0]?.filename || "";
+ 
+//     const addressImage =
+//       req.files?.addressImage?.[0]?.filename || "";
+ 
+//     // =========================
+//     // CREATE DATA
+//     // =========================
+ 
+//     const kycData = {
+//       userId: req.user.id,
+ 
+//       fullName: req.body.fullName,
+//       dateOfBirth: req.body.dateOfBirth,
+//       address: req.body.address,
+//       city: req.body.city,
+//       state: req.body.state,
+//       country: req.body.country,
+//       pincode: req.body.pincode,
+//       phoneNumber: req.body.phoneNumber,
+//       idType: req.body.idType,
+//       idNumber: req.body.idNumber,
+ 
+//       // ✅ SAVE IMAGES
+//       frontImage,
+//       backImage,
+//       selfiewithidnumber,
+//       addressImage,
+ 
+//       kycStatus: "Pending",
+//     };
+ 
+//     console.log("FINAL DATA =>", kycData);
+ 
+//     const kyc = await KYC.create(kycData);
+//     console.log("KYC created:", kyc); 
+ 
+//     return res.status(200).json({
+//       success: true,
+//       message: "KYC updated successfully",
+//       data: kyc,
+//     });
+ 
+//   } catch (error) {
+//     console.log(error);
+ 
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
+

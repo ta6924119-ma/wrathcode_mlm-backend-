@@ -52,7 +52,7 @@ export const Register = async (req, res) => {
       }
       referredByName = parent.name;
       
-      console.log("✅ Parent found:", parent.name);
+      console.log("Parent found:", parent.name);
       console.log("Parent pendingReferralCount before:", parent.pendingReferralCount);
     }
 

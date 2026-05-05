@@ -446,7 +446,6 @@ export const initializeOfflinePayment = async (req, res) => {
 
 
 
-
 export const buyPlan = async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id;
@@ -564,8 +563,15 @@ export const buyPlan = async (req, res) => {
 
     await user.save();
 
-    // 8. AUTO JOIN TREE
+    // ================= 8. AUTO JOIN TREE =================
     const freshUser = await User.findById(user._id);
+
+    console.log("=== AUTO JOIN CHECK ===");
+    console.log("User Name:", freshUser.name);
+    console.log("Plan:", finalPlanName);
+    console.log("freshUser.parentUnilevel:", freshUser.parentUnilevel);
+    console.log("freshUser.parent:", freshUser.parent);
+    console.log("freshUser.parentMatrix:", freshUser.parentMatrix);
 
     if (finalPlanName === "Binary") {
       await joinBinaryAuto(freshUser);
@@ -575,14 +581,14 @@ export const buyPlan = async (req, res) => {
       await joinUnilevelAuto(freshUser);
     }
 
-    // 9. SPONSOR BONUS - FIXED
+    // 9. SPONSOR BONUS
     console.log("========== SPONSOR BONUS CHECK ==========");
     console.log("User ID:", user._id);
     console.log("User Name:", user.name);
     console.log("parentUnilevel:", user.parentUnilevel);
     
     if (user.parentUnilevel) {
-      console.log(" Calling activateReferralAndGiveBonus for sponsor:", user.parentUnilevel);
+      console.log("Calling activateReferralAndGiveBonus for sponsor:", user.parentUnilevel);
       const bonusResult = await activateReferralAndGiveBonus(
         user.parentUnilevel,
         user._id,
@@ -591,7 +597,7 @@ export const buyPlan = async (req, res) => {
       );
       console.log("Bonus Result:", JSON.stringify(bonusResult, null, 2));
     } else {
-      console.log(" No parentUnilevel found - No sponsor bonus will be given");
+      console.log("No parentUnilevel found - No sponsor bonus will be given");
     }
 
     // 10. LEVEL INCOME DISTRIBUTION
@@ -638,7 +644,6 @@ export const buyPlan = async (req, res) => {
     });
   }
 };
-
 // ================== GET INVESTMENT PLANS (GET /buy) ==================
 export const getInvestment = async (req, res) => {
   try {

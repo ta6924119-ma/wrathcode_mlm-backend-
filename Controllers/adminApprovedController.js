@@ -1,15 +1,142 @@
-import { KYC } from "../models/KYC.js";
-import { User } from "../models/User.js";
+
 import jwt from "jsonwebtoken";
 
 
-// =================  UPDATE KYC STATUS (APPROVE/REJECT) =================
+import { KYC } from "../models/KYC.js";
+import { User } from "../models/User.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Helper: Convert file to Base64
+const getBase64Image = (filePath) => {
+  try {
+    if (!filePath) return null;
+    const fullPath = path.join(__dirname, "..", filePath);
+    if (fs.existsSync(fullPath)) {
+      const imageBuffer = fs.readFileSync(fullPath);
+      const base64 = imageBuffer.toString("base64");
+      const ext = path.extname(fullPath).toLowerCase();
+      const mimeType = ext === ".png" ? "image/png" : "image/jpeg";
+      return `data:${mimeType};base64,${base64}`;
+    }
+    return null;
+  } catch (error) {
+    console.error("Base64 conversion error:", error);
+    return null;
+  }
+};
+
+// ================= GET ALL KYC SUBMISSIONS =================
+export const getAllKYC = async (req, res) => {
+  try {
+    const { status, page = 1, limit = 20 } = req.query;
+
+    let filter = {};
+    if (status && status !== "all") {
+      filter.kycStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const kycs = await KYC.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate("userId", "name email");
+
+    const totalKYC = await KYC.countDocuments(filter);
+
+    const stats = {
+      pending: await KYC.countDocuments({ kycStatus: "Pending" }),
+      approved: await KYC.countDocuments({ kycStatus: "Approved" }),
+      rejected: await KYC.countDocuments({ kycStatus: "Rejected" }),
+    };
+
+    res.status(200).json({
+      success: true,
+      stats,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalKYC / parseInt(limit)),
+        total: totalKYC,
+      },
+      kycs: kycs.map((kyc) => ({
+        id: kyc._id,
+        userId: kyc.userId?._id,
+        userName: kyc.userId?.name,
+        userEmail: kyc.userId?.email,
+        fullName: kyc.fullName,
+        idType: kyc.idType,
+        phoneNumber: kyc.phoneNumber,
+        kycStatus: kyc.kycStatus,
+        submittedAt: kyc.createdAt,
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ================= GET SINGLE KYC DETAILS (BASE64 IMAGES) =================
+export const getKYCDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const kyc = await KYC.findById(id).populate("userId", "name email");
+    if (!kyc) {
+      return res.status(404).json({ success: false, message: "KYC not found" });
+    }
+
+    const uploadPath = "uploads/up/";
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: kyc._id,
+        userId: kyc.userId?._id,
+        userName: kyc.userId?.name,
+        userEmail: kyc.userId?.email,
+        personalInfo: {
+          fullName: kyc.fullName,
+          dateOfBirth: kyc.dateOfBirth,
+          address: kyc.address,
+          city: kyc.city,
+          state: kyc.state,
+          country: kyc.country,
+          pincode: kyc.pincode,
+          phoneNumber: kyc.phoneNumber,
+        },
+        idInfo: {
+          idType: kyc.idType,
+          idNumber: kyc.idNumber,
+          idName: kyc.idName,
+        },
+        kycStatus: kyc.kycStatus,
+        adminRemark: kyc.adminRemark,
+        submittedAt: kyc.createdAt,
+        verifiedAt: kyc.verifiedAt,
+        documents: {
+          frontImage: getBase64Image(`${uploadPath}${kyc.frontImage}`),
+          backImage: getBase64Image(`${uploadPath}${kyc.backImage}`),
+          selfie: getBase64Image(`${uploadPath}${kyc.selfiewithidnumber}`),
+          addressProof: getBase64Image(`${uploadPath}${kyc.addressImage}`),
+        },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ================= UPDATE KYC STATUS (APPROVE/REJECT) =================
 export const updateKYCStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, remark } = req.body;
 
-    // Validation
     if (!status || !["Approved", "Rejected"].includes(status)) {
       return res.status(400).json({ 
         success: false, 
@@ -17,7 +144,6 @@ export const updateKYCStatus = async (req, res) => {
       });
     }
 
-    // Rejected ke liye remark mandatory
     if (status === "Rejected" && (!remark || remark.trim() === "")) {
       return res.status(400).json({ 
         success: false, 
@@ -30,13 +156,11 @@ export const updateKYCStatus = async (req, res) => {
       return res.status(404).json({ success: false, message: "KYC not found" });
     }
 
-    // Update KYC
     kyc.kycStatus = status;
     kyc.adminRemark = remark || "";
     kyc.verifiedAt = new Date();
     await kyc.save();
 
-    // If approved, activate user
     if (status === "Approved") {
       await User.findByIdAndUpdate(kyc.userId, { isActive: true });
     }

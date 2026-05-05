@@ -10,7 +10,7 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_SECRET
 });
 
-// ================= SINGLE DEPOSIT API =================
+// =================  DEPOSIT=================
 export const createDeposit = async (req, res) => {
   try {
     const { amount, method, upiId, bankDetails } = req.body;

@@ -4,8 +4,6 @@ import {
   getAdminDashboard,
   getSystemReport,
   getAllUsers,
-  getAllKYC,
-  getKYCDetails,
   getUserOverallDetails,
   checkUserLogin,
   getUserDownlineManagement,
@@ -25,7 +23,7 @@ import {
   getIncome,
   getAllWallets,
 } from "../Controllers/AdminDashordController.js";
-
+import { getAllKYC, getKYCDetails } from "../Controllers/adminApprovedController.js";
 import { adminProtect } from "../middleware/MIddlewares.js";
 
 const router = Router();

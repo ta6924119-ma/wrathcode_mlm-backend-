@@ -12,7 +12,6 @@ export const joinBinary = async (req, res) => {
 
     const user = await User.findById(userId);
     
-    // PLAN CHECK
     const hasPlan = user.plans.some(p => p.name === "Binary");
     if (!hasPlan) {
       return res.status(400).json({ message: "Buy Binary plan first" });
@@ -25,12 +24,18 @@ export const joinBinary = async (req, res) => {
     let parent = await User.findOne({ referral }) || await Admin.findOne({ referral });
     if (!parent) return res.status(400).json({ message: "Invalid referral code" });
 
-    
     let finalParent = parent;
     let finalPosition = position;
 
+    if (!finalPosition) {
+      if (!finalParent.left) {
+        finalPosition = "left";
+      } else if (!finalParent.right) {
+        finalPosition = "right";
+      }
+    }
+
     if (finalParent.left && finalParent.right) {
-      
       const queue = [finalParent];
       let found = false;
       
@@ -53,7 +58,6 @@ export const joinBinary = async (req, res) => {
       }
     }
 
-    // JOIN
     user.parent = finalParent._id;
     user.position = finalPosition;
     await user.save();
@@ -62,8 +66,6 @@ export const joinBinary = async (req, res) => {
     else finalParent.right = user._id;
 
     await finalParent.save();
-
-    
     await distributeBinaryIncome(user._id);
 
     return res.status(200).json({
@@ -76,62 +78,53 @@ export const joinBinary = async (req, res) => {
   }
 };
 
-
-
-
-
-//  ==============================Get Binary Tree====================================
-
-
-
+// ============================== GET BINARY TREE (AMOUNT FIXED) =============================
 export const getBinaryTree = async (req, res) => {
   try {
     const userId = req.user._id;
-
-    // Aaj ki date ka start (12:00 AM) nikalne ke liye
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
     const getLevelData = async (memberId, currentLevel) => {
-      if (currentLevel > 6) return null;
+      if (currentLevel > 10) return null;
 
       const member = await User.findById(memberId)
-        .select("name isActive side createdAt")
+        .select("name isActive createdAt left right plans")
         .lean();
 
       if (!member) return null;
 
-      const children = await User.find({ sponsor: memberId }).select("_id side");
+      // Calculate user's total investment
+      const userInvestment = member.plans?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
 
       let leftNode = null;
       let rightNode = null;
 
-      for (const child of children) {
-        if (child.side === "left") {
-          leftNode = await getLevelData(child._id, currentLevel + 1);
-        } else if (child.side === "right") {
-          rightNode = await getLevelData(child._id, currentLevel + 1);
-        }
+      if (member.left) {
+        leftNode = await getLevelData(member.left, currentLevel + 1);
+      }
+      if (member.right) {
+        rightNode = await getLevelData(member.right, currentLevel + 1);
       }
 
-      // --- CALCULATIONS ---
-      
-      // 1. Total Members Count
-      const leftCount = leftNode ? (leftNode.stats.leftCount + leftNode.stats.rightCount + 1) : 0;
-      const rightCount = rightNode ? (rightNode.stats.leftCount + rightNode.stats.rightCount + 1) : 0;
+      const isNewJoin = (date) => new Date(date) >= startOfToday;
 
-      // 2. New Joins Calculation (Jo aaj join huye hain)
-      const isNewJoin = (memberDate) => new Date(memberDate) >= startOfToday;
+      let leftCount = 0, leftAmount = 0, leftNewJoins = 0;
+      let rightCount = 0, rightAmount = 0, rightNewJoins = 0;
 
-      const leftNewJoins = leftNode ? 
-        (leftNode.stats.leftNewJoins + leftNode.stats.rightNewJoins + (isNewJoin(leftNode.createdAt) ? 1 : 0)) : 0;
-      
-      const rightNewJoins = rightNode ? 
-        (rightNode.stats.leftNewJoins + rightNode.stats.rightNewJoins + (isNewJoin(rightNode.createdAt) ? 1 : 0)) : 0;
+      if (leftNode) {
+        leftCount = leftNode.stats.leftCount + leftNode.stats.rightCount + 1;
+        leftAmount = leftNode.stats.leftAmount + leftNode.stats.rightAmount + userInvestment;
+        leftNewJoins = leftNode.stats.leftNewJoins + leftNode.stats.rightNewJoins + (isNewJoin(leftNode.createdAt) ? 1 : 0);
+      }
 
-      // 3. Amount Calculation
-      const leftAmount = leftNode ? (leftNode.stats.leftAmount + leftNode.stats.rightAmount + (leftNode.isActive ? 1000 : 0)) : 0;
-      const rightAmount = rightNode ? (rightNode.stats.leftAmount + rightNode.stats.rightAmount + (rightNode.isActive ? 1000 : 0)) : 0;
+      if (rightNode) {
+        rightCount = rightNode.stats.leftCount + rightNode.stats.rightCount + 1;
+        rightAmount = rightNode.stats.leftAmount + rightNode.stats.rightAmount + userInvestment;
+        rightNewJoins = rightNode.stats.leftNewJoins + rightNode.stats.rightNewJoins + (isNewJoin(rightNode.createdAt) ? 1 : 0);
+      }
+
+      const currentNewJoin = isNewJoin(member.createdAt) ? 1 : 0;
 
       return {
         _id: member._id,
@@ -143,11 +136,11 @@ export const getBinaryTree = async (req, res) => {
           rightCount,
           leftAmount,
           rightAmount,
-          leftNewJoins, // Aaj ke new members (Left)
-          rightNewJoins, // Aaj ke new members (Right)
-          totalNewJoins: leftNewJoins + rightNewJoins,
-          totalMembers: leftCount + rightCount,
-          totalAmount: leftAmount + rightAmount
+          leftNewJoins,
+          rightNewJoins,
+          totalNewJoins: leftNewJoins + rightNewJoins + currentNewJoin,
+          totalMembers: leftCount + rightCount + 1,
+          totalAmount: leftAmount + rightAmount + userInvestment
         },
         children: {
           left: leftNode,
@@ -164,17 +157,12 @@ export const getBinaryTree = async (req, res) => {
     });
 
   } catch (error) {
+    console.error("Get Binary Tree Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
-
-
-//===============================List all viwers====================================
-
-
-
-
+// =================== GET LIST VIEW =================
 export const getListView = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -183,41 +171,35 @@ export const getListView = async (req, res) => {
     const fetchDownline = async (parentIds, currentLevel, allMembers = []) => {
       if (currentLevel > 10) return allMembers;
 
-      const members = await User.find({ sponsor: { $in: parentIds } })
-        .populate("sponsor", "name")
-        .select("name email isActive createdAt leftBV rightBV side")
+      const members = await User.find({ parent: { $in: parentIds } })
+        .populate("parent", "name")
+        .select("name email isActive createdAt")
         .lean();
 
       if (members.length === 0) return allMembers;
 
-      
       const membersWithReferrals = await Promise.all(
         members.map(async (m) => {
-          const referralCount = await User.countDocuments({ sponsor: m._id });
+          const referralCount = await User.countDocuments({ parent: m._id });
           return {
             ...m,
             level: currentLevel,
-            volume: (m.leftBV || 0) + (m.rightBV || 0) || 0,
-            sponsorName: m.sponsor ? m.sponsor.name : "You",
-            referralCount // Naya Field
+            sponsorName: m.parent ? m.parent.name : "You",
+            referralCount
           };
         })
       );
 
       allMembers.push(...membersWithReferrals);
-
       const nextParentIds = members.map(m => m._id);
       return fetchDownline(nextParentIds, currentLevel + 1, allMembers);
     };
 
     let fullList = await fetchDownline([userId], 1);
 
-    
     const totalMembers = fullList.length;
     const activeMembers = fullList.filter(m => m.isActive).length;
-    const totalVolume = fullList.reduce((sum, m) => sum + m.volume, 0);
 
-    
     if (levelFilter && levelFilter !== "All") {
       const lvl = parseInt(levelFilter);
       fullList = fullList.filter(m => m.level === lvl);
@@ -225,18 +207,13 @@ export const getListView = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      stats: {
-        totalMembers,
-        activeMembers,
-        totalVolume: `$${totalVolume.toLocaleString()}`
-      },
+      stats: { totalMembers, activeMembers },
       members: fullList.map(m => ({
         name: m.name,
         email: m.email,
         level: `Level ${m.level}`,
-        volume: `$${m.volume}`,
-        referrals: m.referralCount, 
-        joinDate: new Date(m.createdAt).toLocaleDateString("en-GB"), 
+        referrals: m.referralCount,
+        joinDate: new Date(m.createdAt).toLocaleDateString("en-GB"),
         sponsor: m.sponsorName,
         status: m.isActive ? "Active" : "Inactive"
       }))
